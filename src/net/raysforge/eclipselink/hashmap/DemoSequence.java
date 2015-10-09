@@ -7,6 +7,8 @@ import org.eclipse.persistence.internal.sessions.AbstractSession;
 import org.eclipse.persistence.sequencing.Sequence;
 
 public class DemoSequence extends Sequence {
+	
+	public static volatile long lastID=0;
 
 	public DemoSequence() {
 	}
@@ -32,8 +34,7 @@ public class DemoSequence extends Sequence {
 	public Object getGeneratedValue(Accessor accessor, AbstractSession writeSession, String seqName) {
 		//ClientSession cs = (ClientSession) writeSession;
 		//DemoPlatform p = (DemoPlatform) getDatasourcePlatform();
-		//System.out.println("getGeneratedValue " + p + " " + seqName);
-		return System.currentTimeMillis();
+		return lastID; // System.currentTimeMillis();
 	}
 
 	@SuppressWarnings("rawtypes")

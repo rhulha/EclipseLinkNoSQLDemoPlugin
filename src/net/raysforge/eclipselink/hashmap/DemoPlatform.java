@@ -38,6 +38,12 @@ public class DemoPlatform extends EISPlatform {
 		setIsIndexedRecordSupported(false);
 		setIsDOMRecordSupported(false);
 		setSupportsLocalTransactions(true); // left in for demo purposes
+		setDefaultNativeSequenceToTable(false);
+	}
+
+	@Override
+	public boolean supportsIdentity() {
+		return true;
 	}
 
 	private MappedInteraction getCall(DescriptorQueryManager queryManager, DemoOperation op) {
@@ -45,10 +51,11 @@ public class DemoPlatform extends EISPlatform {
 		call.setProperty(DemoPlatform.OPERATION, op);
 		call.setProperty(KEYS, getPrimaryKeys(queryManager.getDescriptor()));
 		call.setProperty(DemoPlatform.TABLE, ((EISDescriptor) queryManager.getDescriptor()).getDataTypeName());
-		if (op == DemoOperation.FIND || op == DemoOperation.REMOVE)
+		if (op == DemoOperation.FIND || op == DemoOperation.REMOVE) {
 			for (DatabaseField field : queryManager.getDescriptor().getPrimaryKeyFields()) {
 				call.addArgument(field.getName());
 			}
+		}
 		return call;
 	}
 
@@ -72,17 +79,18 @@ public class DemoPlatform extends EISPlatform {
 			qm.setDeleteCall(getCall(qm, DemoOperation.REMOVE));
 		}
 	}
-	
+
 	public String[] getPrimaryKeys(ClassDescriptor cd) {
-		if( !cd.hasSimplePrimaryKey())
+		if (!cd.hasSimplePrimaryKey()) {
 			throw new RuntimeException("only simple primary key is currently supported.");
-		List<DatabaseField> primaryKeyFields = cd.getPrimaryKeyFields(); 
+		}
+		List<DatabaseField> primaryKeyFields = cd.getPrimaryKeyFields();
 		String[] res = new String[primaryKeyFields.size()];
-		int i=0;
+		int i = 0;
 		for (DatabaseField f : primaryKeyFields) {
 			try {
 				Field field = cd.getJavaClass().getDeclaredField(f.getName()); // f.getTypeName() is null  :-(
-				res[i++]=field.getType().getSimpleName() + " " + f.getName();
+				res[i++] = field.getType().getSimpleName() + " " + f.getName();
 			} catch (NoSuchFieldException e) {
 				throw new RuntimeException(e);
 			}
@@ -119,7 +127,7 @@ public class DemoPlatform extends EISPlatform {
 		//System.out.println("createOutputRecord");
 		if (interaction.getInteractionSpec() != null) {
 			boolean a = ((DemoInteractionSpec) interaction.getInteractionSpec()).getOperation() == DemoOperation.UPDATE;
-			if(a)
+			if (a)
 				return (Record) interaction.createRecordElement(interaction.getInputRecordName(), translationRow, accessor);
 		} else if (interaction.getProperty(OPERATION) != null) {
 			boolean a = interaction.getProperty(OPERATION) == DemoOperation.UPDATE;
@@ -138,6 +146,27 @@ public class DemoPlatform extends EISPlatform {
 	public InteractionSpec buildInteractionSpec(EISInteraction interaction) {
 		//System.out.println("buildInteractionSpec");
 		return interaction.getInteractionSpec() == null ? new DemoInteractionSpec(interaction) : interaction.getInteractionSpec();
+	}
+
+	// Without this you get: net.raysforge.eclipselink.hashmap.DemoPlatform cannot be cast to org.eclipse.persistence.internal.databaseaccess.DatabasePlatform
+	private Sequence s;
+
+	public Sequence getSequence(String seqName) {
+		if ("SEQ_GEN_IDENTITY".equals(seqName)) {
+			if (s == null) {
+				s = createPlatformDefaultSequence();
+			}
+			return s;
+		}
+		if (seqName == null) {
+			return getDefaultSequence();
+		} else {
+			if (this.sequences != null) {
+				return (Sequence) this.sequences.get(seqName);
+			} else {
+				return null;
+			}
+		}
 	}
 
 	@Override

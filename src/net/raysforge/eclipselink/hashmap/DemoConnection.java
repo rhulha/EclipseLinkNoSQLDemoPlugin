@@ -35,7 +35,7 @@ public class DemoConnection implements Connection {
 		this.transaction = new DemoTransaction(this);
 	}
 
-	// IMPORTANT: We could've used DemoSequence instead nanoTime of but I want to emulate a database that creates (auto increment) identity values
+	// IMPORTANT: We could've used DemoSequence instead of nanoTime but I want to emulate a database that creates (auto increment) identity values
 	@SuppressWarnings("unchecked")
 	public void write(DemoInteractionSpec spec, String tableName, DemoMappedRecord mapped) throws ResourceException {
 		if (!database.containsKey(tableName)) {
@@ -44,15 +44,16 @@ public class DemoConnection implements Connection {
 
 		if (spec.getKeys().length != 1)
 			throw new ResourceException("one and only one @Id field is currently supported.");
-		long nanoTime = System.nanoTime(); 
+		long nanoTime = System.nanoTime();
+		DemoSequence.lastID = nanoTime;
 		if (mapped.get(spec.getKeys()[0]) == null) {
 			String[] keyTypeAndName = spec.getKeys()[0].split(" ");
-			if( keyTypeAndName[0].equals("Long"))
+			if( keyTypeAndName[0].equalsIgnoreCase("Long"))
 				mapped.put(keyTypeAndName[1], new Long(nanoTime));
 			else if( keyTypeAndName[0].equals("String"))
 				mapped.put(keyTypeAndName[1], ""+nanoTime);
 			else
-				throw new ResourceException("Only Long or String @Id field is currently supported.");
+				throw new ResourceException("Only Long or String @Id field is currently supported: " + keyTypeAndName[0]);
 		}
 		database.get(tableName).add(mapped);
 	}
@@ -97,6 +98,10 @@ public class DemoConnection implements Connection {
 		if (readQuery.hasOrderByExpressions()) {
 			//for (Expression orderBy : readQuery.getOrderByExpressions()) {
 			//}
+		}
+		
+		if (!database.containsKey(tableName)) {
+			database.put(tableName, new ArrayList<HashMap<String, Object>>());
 		}
 
 		ArrayList<HashMap<String, Object>> filteredTableEntries = (ArrayList<HashMap<String, Object>>) database.get(tableName).clone();
