@@ -26,6 +26,11 @@ public class DemoConnection implements Connection {
 
 	// tablename, list of MappedRecords
 	public static final HashMap<String, ArrayList<HashMap<String, Object>>> database = new HashMap<String, ArrayList<HashMap<String, Object>>>(); 
+	private void ensureDatabaseExists(String tableName) {
+		if (!database.containsKey(tableName)) {
+			database.put(tableName, new ArrayList<HashMap<String, Object>>());
+		}
+	}
 
 	protected DemoJCAConnectionSpec connectionSpec;
 	private DemoTransaction transaction;
@@ -35,38 +40,65 @@ public class DemoConnection implements Connection {
 		this.transaction = new DemoTransaction(this);
 	}
 
-	// IMPORTANT: We could've used DemoSequence instead of nanoTime but I want to emulate a database that creates (auto increment) identity values
 	@SuppressWarnings("unchecked")
 	public void write(DemoInteractionSpec spec, String tableName, DemoMappedRecord mapped) throws ResourceException {
-		if (!database.containsKey(tableName)) {
-			database.put(tableName, new ArrayList<HashMap<String, Object>>());
-		}
-
-		if (spec.getKeys().length != 1)
-			throw new ResourceException("one and only one @Id field is currently supported.");
-		long nanoTime = System.nanoTime();
-		DemoSequence.lastID = nanoTime;
-		if (mapped.get(spec.getKeys()[0]) == null) {
-			String[] keyTypeAndName = spec.getKeys()[0].split(" ");
-			if( keyTypeAndName[0].equalsIgnoreCase("Long"))
-				mapped.put(keyTypeAndName[1], new Long(nanoTime));
-			else if( keyTypeAndName[0].equals("String"))
-				mapped.put(keyTypeAndName[1], ""+nanoTime);
-			else
-				throw new ResourceException("Only Long or String @Id field is currently supported: " + keyTypeAndName[0]);
-		}
+		ensureDatabaseExists(tableName);
+		insertIdentityIfMissing(spec, mapped);
 		database.get(tableName).add(mapped);
 	}
 
 	@SuppressWarnings("unchecked")
 	public void update(DemoInteractionSpec spec, String tableName, DemoMappedRecord which, DemoMappedRecord with) throws ResourceException {
-		database.get(tableName).set(database.get(tableName).indexOf(which), with);
+		ensureDatabaseExists(tableName);
+		if (spec.getKeys().length != 1)
+			throw new ResourceException("one and only one @Id field is currently supported.");
+		String idFieldName = spec.getKeys()[0].split(" ")[1];
+		if( which.get(idFieldName) == null)
+			throw new ResourceException("Entity to be removed is missing an @Id field value.");
+		database.get(tableName).set(database.get(tableName).indexOf(findEntryForID(tableName, idFieldName, which.get(idFieldName))), with);
 	}
 
 	public void remove(DemoInteractionSpec spec, String tableName, DemoMappedRecord input) throws ResourceException {
-		database.get(tableName).remove(input);
+		ensureDatabaseExists(tableName);
+		if (spec.getKeys().length != 1)
+			throw new ResourceException("one and only one @Id field is currently supported.");
+		String idFieldName = spec.getKeys()[0].split(" ")[1];
+		if( input.get(idFieldName) == null)
+			throw new ResourceException("Entity to be removed is missing an @Id field value.");
+
+		database.get(tableName).remove(findEntryForID(tableName, idFieldName, input.get(idFieldName)));
 	}
 
+	// IMPORTANT: We could've used DemoSequence instead of nanoTime but I want to emulate a database that creates (auto increment) identity values
+	@SuppressWarnings("unchecked")
+	private void insertIdentityIfMissing(DemoInteractionSpec spec, DemoMappedRecord mapped) throws ResourceException {
+		if (spec.getKeys().length != 1)
+			throw new ResourceException("one and only one @Id field is currently supported.");
+		long nanoTime = DemoSequence.lastID = System.nanoTime();
+
+		String[] keyTypeAndName = spec.getKeys()[0].split(" ");
+		String idFieldType = keyTypeAndName[0];
+		String idFieldName = keyTypeAndName[1];
+		
+		if (mapped.get(idFieldName) == null) {
+			if( idFieldType.equalsIgnoreCase("Long"))
+				mapped.put(idFieldName, new Long(nanoTime));
+			else if( keyTypeAndName[0].equals("String"))
+				mapped.put(idFieldName, ""+nanoTime);
+			else
+				throw new ResourceException("Only Long or String @Id field is currently supported: " + idFieldType);
+		}
+	}
+
+	public Object findEntryForID( String tableName, String idFieldName, Object id) {
+		for (HashMap<String, Object> tableEntry : database.get(tableName)) {
+			if( tableEntry.containsKey(idFieldName) && tableEntry.get(idFieldName).equals(id)) {
+				return tableEntry;
+			}
+		}
+		return null;
+	}
+	
 	@Override
 	public void close() throws ResourceException {
 	}
@@ -100,9 +132,7 @@ public class DemoConnection implements Connection {
 			//}
 		}
 		
-		if (!database.containsKey(tableName)) {
-			database.put(tableName, new ArrayList<HashMap<String, Object>>());
-		}
+		ensureDatabaseExists(tableName);
 
 		ArrayList<HashMap<String, Object>> filteredTableEntries = (ArrayList<HashMap<String, Object>>) database.get(tableName).clone();
 

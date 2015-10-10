@@ -32,6 +32,11 @@ public class TestCreateEmail {
 
 		System.out.println("subject = " + testFind.getSubject());
 
+		email1.setSubject("UPDATED_SUBJECT");
+		em.remove(testFind);
+		em.getTransaction().begin();
+		em.getTransaction().commit();
+
 		TypedQuery<Email> q = em.createQuery("SELECT t FROM Email t where t.id > 70", Email.class);
 		List<Email> list = q.getResultList();
 		System.out.println("id, subject");
@@ -39,6 +44,7 @@ public class TestCreateEmail {
 			System.out.println(e.getId() + ", " + e.getSubject());
 		}
 
+		
 		em.close();
 
 		emf.close();
